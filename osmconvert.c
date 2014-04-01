@@ -1,5 +1,5 @@
-// osmconvert 2013-06-30 10:30
-#define VERSION "0.7T"
+// osmconvert 2014-04-01 11:30
+#define VERSION "0.7U"
 //
 // compile this file:
 // gcc osmconvert.c -lz -O3 -o osmconvert
@@ -50,6 +50,7 @@ const char* shorthelptext=
 "--fake-author             set changeset to 1 and timestamp to 1970\n"
 "--fake-version            set version number to 1\n"
 "--fake-lonlat             set lon to 0 and lat to 0\n"
+"--keep-lonlat             keep lon and lat for deleted objects (.osc format)\n"
 "-h                        display this parameter overview\n"
 "--help                    display a more detailed help\n"
 "--merge-versions          merge versions of each object in a file\n"
@@ -487,6 +488,8 @@ static bool global_fakeauthor= false;  // fake author information
 static bool global_fakeversion= false;  // fake just the version number
 static bool global_fakelonlat= false;
   // fake longitude and latitude in case of delete actions (.osc);
+static bool global_keeplonlat= false;
+  // keep longitude and latitude for delete actions (.osc);
 static bool global_dropbrokenrefs= false;  // exclude broken references
 static bool global_dropnodes= false;  // exclude nodes section
 static bool global_dropways= false;  // exclude ways section
@@ -7612,7 +7615,7 @@ static inline void wo_relation_close() {
 
 static void wo_delete(int otype,int64_t id,
     int32_t hisver,int64_t histime,int64_t hiscset,
-    uint32_t hisuid,const char* hisuser) {
+    uint32_t hisuid,const char* hisuser, int32_t lon, int32_t lat) {
   // write osm delete request;
   // this is possible for o5m format only;
   // for any other output format, this procedure does nothing;
@@ -7640,7 +7643,13 @@ return;
     if(wo__format>=13) write_str("  <"); else write_str("\t<");
     write_str(ONAME(otype));
     write_str(" id=\""); write_sint64(id);
-    if(global_fakelonlat)
+    if(global_keeplonlat) {
+      write_str("\" lat=\"");
+      write_sfix7(lat);
+      write_str("\" lon=\"");
+      write_sfix7(lon);
+      }
+    else if(global_fakelonlat)
       write_str("\" lat=\"0\" lon=\"0");
     wo__author(hisver,histime,hiscset,hisuid,hisuser);
     wo__xmlclosetag= "\"/>"NL;  // preset close tag
@@ -10199,7 +10208,7 @@ return 26;
           // section is not to drop anyway
         if(global_outo5c || global_outosc || global_outosh)
           // write o5c, osc or osh file
-          wo_delete(otype,id,hisver,histime,hiscset,hisuid,hisuser);
+          wo_delete(otype,id,hisver,histime,hiscset,hisuid,hisuser,lon,lat);
             // write delete request
   continue;  // end processing for this object
       }  // end   object is to delete
@@ -11507,6 +11516,12 @@ return 0;
         // user wants just faked longitude and latitude
         // in case of delete actions (.osc files);
       global_fakelonlat= true;
+  continue;  // take next parameter
+      }
+    if(strzcmp(a,"--keep-lonlat")==0) {
+        // user wants to keep longitude and latitude
+        // in case of delete actions (.osc files);
+      global_keeplonlat= true;
   continue;  // take next parameter
       }
     if(strzcmp(a,"--drop-bro")==0) {
